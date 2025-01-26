@@ -1,12 +1,17 @@
 package com.example.healmatesapp.Views.activities
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.example.healmatesapp.R
 import com.example.healmatesapp.VM.RegisterViewModel
 
@@ -28,6 +33,7 @@ class RegisterActivity : AppCompatActivity() {
         editTextConfirmPassword = findViewById(R.id.editTextConfirmPassword)
         buttonRegister = findViewById(R.id.buttonRegister)
 
+        // Инициализация ViewModel
         viewModel = ViewModelProvider(this).get(RegisterViewModel::class.java)
 
         // Наблюдаем за изменениями статуса регистрации
@@ -45,6 +51,44 @@ class RegisterActivity : AppCompatActivity() {
             }
         })
 
+        // Обработка нажатия по экрану для скрытия клавиатуры
+        val rootLayout: LinearLayout = findViewById(R.id.rootLayout)  // Корневой LinearLayout
+        rootLayout.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                // Закрыть клавиатуру при нажатии вне поля ввода
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(currentFocus?.windowToken, 0)
+            }
+            false
+        }
+
+        // Валидация почты (только email)
+        editTextRegEmail.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                val email = s.toString()
+                if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                    editTextRegEmail.error = "Введите правильный email"
+                }
+            }
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // Валидация пароля (не менее одной цифры)
+        editTextRegPassword.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                val password = s.toString()
+                if (password.length < 6 || !password.matches(".*\\d.*".toRegex())) {
+                    editTextRegPassword.error = "Пароль должен быть сложным (не менее 6 символов и содержать цифры)"
+                }
+            }
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // Обработка кнопки регистрации
         buttonRegister.setOnClickListener {
             val email = editTextRegEmail.text.toString().trim()
             val password = editTextRegPassword.text.toString().trim()

@@ -1,5 +1,13 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
+    <color name="primary_color">#2E7D32</color>
+    <color name="primary_text_color">#2C3E50</color>
+    <color name="secondary_text_color">#7F8C8D</color>
+    <color name="background_color">#FAF9F6</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="button_color">#388E3C</color>
+    <color name="button_text_color">#FFFFFF</color>
+    <color name="edittext_background_color">#ECEFF1</color>
+    <color name="underline_color">#388E3C</color>
+    <color name="purple_500">#388E3C</color>
+    <color name="purple_700">#388E3C</color>
 </resources>
