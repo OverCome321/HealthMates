@@ -44,11 +44,22 @@ func Register(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 		return
 	}
 
-	// Отправляем успешный ответ
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "User %s registered successfully", user.Login)
+	// Генерируем JWT токен
+	token, err := utils.GenerateJWT(user.Login, user.IsRemember)
+	if err != nil {
+		http.Error(w, "Could not generate token", http.StatusInternalServerError)
+		return
+	}
+
+	// Отправляем успешный ответ с токеном
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": fmt.Sprintf("User %s registered successfully", user.Login),
+		"token":   token,
+	})
 }
 
+// Функция для логина (создание JWT токена)
 // Функция для логина (создание JWT токена)
 func Login(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	var user models.User
@@ -71,8 +82,14 @@ func Login(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 		return
 	}
 
-	// Генерируем JWT
-	token, err := utils.GenerateJWT(user.Login)
+	// Обновляем поле IsRemember в базе данных
+	if err := db.Model(&storedUser).Update("is_remember", user.IsRemember).Error; err != nil {
+		http.Error(w, "Could not update user", http.StatusInternalServerError)
+		return
+	}
+
+	// Генерируем JWT токен
+	token, err := utils.GenerateJWT(user.Login, user.IsRemember)
 	if err != nil {
 		http.Error(w, "Could not generate token", http.StatusInternalServerError)
 		return

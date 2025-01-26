@@ -11,4 +11,5 @@ type User struct {
 	CreatedDate  time.Time `gorm:"autoCreateTime"` // Автоматически устанавливается время создания
 	RoleId       int       `gorm:"not null"`
 	Role         Role      `gorm:"foreignKey:RoleId"`
+	IsRemember   bool      `gorm:"default:false"` // Поле для "Запомнить меня"
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"healthmates/auth-service/handlers"
 	"healthmates/auth-service/models"
 	"log"
 	"net/http"
@@ -37,6 +38,16 @@ func main() {
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		// Это просто тестовый эндпоинт, если нужно будет его использовать в будущем
 		w.Write([]byte("Test endpoint hit. Database is connected and migrated."))
+	})
+
+	// Регистрация
+	http.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		handlers.Register(w, r, db)
+	})
+
+	// Авторизация
+	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		handlers.Login(w, r, db)
 	})
 
 	// Запускаем сервер на порту 8080

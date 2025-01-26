@@ -16,9 +16,16 @@ type Claims struct {
 }
 
 // Функция для генерации JWT токена
-func GenerateJWT(username string) (string, error) {
-	// Определяем время истечения токена
-	expirationTime := time.Now().Add(24 * time.Hour)
+func GenerateJWT(username string, isRemember bool) (string, error) {
+	var expirationTime time.Time
+
+	if isRemember {
+		// Если "Запомнить меня" включено, токен будет действовать бесконечно
+		expirationTime = time.Now().Add(365 * 24 * time.Hour) // 1 год
+	} else {
+		// Если "Запомнить меня" выключено, токен будет действовать 24 часа
+		expirationTime = time.Now().Add(24 * time.Hour)
+	}
 
 	// Создаем новый токен с использованием HMAC SHA256 алгоритма
 	claims := &Claims{
