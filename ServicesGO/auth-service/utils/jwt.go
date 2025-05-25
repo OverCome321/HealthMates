@@ -1,48 +1,65 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
+	"os"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 )
-
-var jwtKey = []byte("secret_key") // Ключ для подписи токена (его стоит хранить безопасно)
 
 // Структура для данных, которые будем включать в JWT
 type Claims struct {
-	Username string `json:"username"`
-	jwt.StandardClaims
+	Email string `json:"email"`
+	Phone string `json:"phone"`
+	jwt.RegisteredClaims
 }
 
 // Функция для генерации JWT токена
-func GenerateJWT(username string, isRemember bool) (string, error) {
-	var expirationTime time.Time
-
-	if isRemember {
-		// Если "Запомнить меня" включено, токен будет действовать бесконечно
-		expirationTime = time.Now().Add(365 * 24 * time.Hour) // 1 год
-	} else {
-		// Если "Запомнить меня" выключено, токен будет действовать 24 часа
-		expirationTime = time.Now().Add(24 * time.Hour)
-	}
-
-	// Создаем новый токен с использованием HMAC SHA256 алгоритма
+func GenerateJWT(email, phone string) (string, error) {
+	// Создаем claims с данными пользователя
 	claims := &Claims{
-		Username: username,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
+		Email: email,
+		Phone: phone,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
 		},
 	}
 
-	// Создаем новый токен
+	// Создаем токен с claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	// Подписываем токен
-	tokenString, err := token.SignedString(jwtKey)
+	// Подписываем токен секретным ключом
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
-		return "", fmt.Errorf("could not sign the token: %v", err)
+		return "", err
 	}
 
 	return tokenString, nil
+}
+
+func ValidateToken(tokenString string) (*Claims, error) {
+	// Парсим токен
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Проверяем валидность токена
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	// Получаем claims
+	claims, ok := token.Claims.(*Claims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
+	}
+
+	return claims, nil
 }
