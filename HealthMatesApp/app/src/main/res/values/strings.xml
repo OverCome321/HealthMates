@@ -1,3 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Здоровье вместе</string>
+    <string name="app_name">HealthMates</string>
+    <string name="default_web_client_id">706503012867-cj8nue6o8d0hq5k3h417rnd58i65khna.apps.googleusercontent.com</string>
 </resources>

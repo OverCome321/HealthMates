@@ -2,101 +2,152 @@ package com.example.healmatesapp.Views.activities
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import com.example.healmatesapp.API.ApiClient
+import com.example.healmatesapp.API.Models.LoginRequest
 import com.example.healmatesapp.R
-import com.example.healmatesapp.VM.LoginViewModel
+import com.example.healmatesapp.databinding.ActivityLoginBinding
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Task
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class LoginActivity : AppCompatActivity() {
-
-    private lateinit var editTextLogin: EditText
-    private lateinit var editTextPassword: EditText
-    private lateinit var buttonLogin: Button
-    private lateinit var buttonRegister: Button
-
-    private val viewModel: LoginViewModel by viewModels()
+    private lateinit var binding: ActivityLoginBinding
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private val RC_SIGN_IN = 9001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_login)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        // Инициализация всех элементов
-        editTextLogin = findViewById(R.id.editTextLogin)
-        editTextPassword = findViewById(R.id.editTextPassword)
-        buttonLogin = findViewById(R.id.buttonLogin)
-        buttonRegister = findViewById(R.id.buttonRegister)
+        setupGoogleSignIn()
+        setupClickListeners()
+    }
 
-        // Обработка нажатия по экрану для скрытия клавиатуры
-        val rootLayout: LinearLayout = findViewById(R.id.rootLayout)  // Корневой LinearLayout
-        rootLayout.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                // Закрыть клавиатуру при нажатии вне поля ввода
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(currentFocus?.windowToken, 0)
-            }
-            false
-        }
+    private fun setupGoogleSignIn() {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
 
-        // Валидация почты (только email)
-        editTextLogin.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val email = s.toString()
-                if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                    editTextLogin.error = "Введите правильный email"
-                }
-            }
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+    }
 
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        // Валидация пароля (не менее одной цифры)
-        editTextPassword.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val password = s.toString()
-                if (password.length < 6 || !password.matches(".*\\d.*".toRegex())) {
-                    editTextPassword.error = "Пароль должен быть сложным (не менее 6 символов и содержать цифры)"
-                }
-            }
-
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        // Обработка кнопки входа
-        buttonLogin.setOnClickListener {
-            val login = editTextLogin.text.toString()
-            val password = editTextPassword.text.toString()
-
-            // Проверки на корректность данных
-            if (login.isEmpty() || password.isEmpty()) {
+    private fun setupClickListeners() {
+        binding.buttonLogin.setOnClickListener {
+            val email = binding.editTextEmail.text.toString()
+            val password = binding.editTextPassword.text.toString()
+            
+            if (email.isNotEmpty() && password.isNotEmpty()) {
+                login(email, password)
+            } else {
                 Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
             }
-
-            viewModel.login(login, password)
         }
 
-        // Обработка кнопки регистрации
-        buttonRegister.setOnClickListener {
-            startActivity(Intent(this, RegisterActivity::class.java))
+        binding.buttonGoogleSignIn.setOnClickListener {
+            signInWithGoogle()
         }
+    }
 
-        // Наблюдатели LiveData
-        viewModel.loginResult.observe(this) { result ->
-            Toast.makeText(this, result, Toast.LENGTH_SHORT).show()
-        }
+    private fun signInWithGoogle() {
+        val signInIntent = googleSignInClient.signInIntent
+        startActivityForResult(signInIntent, RC_SIGN_IN)
+    }
 
-        viewModel.errorMessage.observe(this) { error ->
-            Toast.makeText(this, error, Toast.LENGTH_SHORT).show()
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == RC_SIGN_IN) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+            handleSignInResult(task)
         }
+    }
+
+    private fun handleSignInResult(completedTask: Task<GoogleSignInAccount>) {
+        try {
+            val account = completedTask.getResult(ApiException::class.java)
+            account?.idToken?.let { token ->
+                loginWithGoogle(token)
+            }
+        } catch (e: ApiException) {
+            Toast.makeText(this, "Ошибка входа через Google: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun login(email: String, password: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    ApiClient.authApi.login(LoginRequest(email = email, phone = "", password = password, provider = ""))
+                }
+                
+                if (response.isSuccessful) {
+                    response.body()?.let { authResponse ->
+                        saveToken(authResponse.token)
+                        withContext(Dispatchers.Main) {
+                            startMainActivity()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@LoginActivity, "Ошибка входа", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@LoginActivity, "Ошибка входа: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun loginWithGoogle(token: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    ApiClient.authApi.loginWithGoogle(LoginRequest(email = "", phone = "", password = "", provider = "google", token = token))
+                }
+                
+                if (response.isSuccessful) {
+                    response.body()?.let { authResponse ->
+                        saveToken(authResponse.token)
+                        withContext(Dispatchers.Main) {
+                            startMainActivity()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@LoginActivity, "Ошибка входа через Google", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@LoginActivity, "Ошибка входа через Google: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun saveToken(token: String) {
+        getSharedPreferences("auth", MODE_PRIVATE)
+            .edit()
+            .putString("token", token)
+            .apply()
+    }
+
+    private fun startMainActivity() {
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        finish()
     }
 }

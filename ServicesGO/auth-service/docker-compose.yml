@@ -5,13 +5,12 @@ services:
     build: .
     ports:
       - "8081:8080"
+    env_file:
+      - .env
     environment:
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_USER=sa
-      - DB_PASSWORD=admin
-      - DB_NAME=healthmates
-      - JWT_SECRET=your-secret-key
+    volumes:
+      - ./logs:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

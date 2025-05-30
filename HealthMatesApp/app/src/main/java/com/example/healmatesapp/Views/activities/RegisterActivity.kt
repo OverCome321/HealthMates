@@ -1,132 +1,79 @@
 package com.example.healmatesapp.Views.activities
 
+import android.content.Intent
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Observer
-import androidx.lifecycle.ViewModelProvider
-import com.example.healmatesapp.R
-import com.example.healmatesapp.VM.RegisterViewModel
+import com.example.healmatesapp.API.ApiClient
+import com.example.healmatesapp.API.Models.RegisterRequest
+import com.example.healmatesapp.databinding.ActivityRegisterBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class RegisterActivity : AppCompatActivity() {
-
-    private lateinit var viewModel: RegisterViewModel
-    private lateinit var editTextRegEmail: EditText
-    private lateinit var editTextRegPassword: EditText
-    private lateinit var editTextConfirmPassword: EditText
-    private lateinit var buttonRegister: Button
+    private lateinit var binding: ActivityRegisterBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_register)
+        binding = ActivityRegisterBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        // Инициализация View-элементов
-        editTextRegEmail = findViewById(R.id.editTextRegEmail)
-        editTextRegPassword = findViewById(R.id.editTextRegPassword)
-        editTextConfirmPassword = findViewById(R.id.editTextConfirmPassword)
-        buttonRegister = findViewById(R.id.buttonRegister)
+        setupClickListeners()
+    }
 
-        // Инициализация ViewModel
-        viewModel = ViewModelProvider(this).get(RegisterViewModel::class.java)
-
-        // Наблюдаем за изменениями статуса регистрации
-        viewModel.registerResult.observe(this, Observer { result ->
-            if (result != null) {
-                Toast.makeText(this, result, Toast.LENGTH_SHORT).show()
-                finish()
+    private fun setupClickListeners() {
+        binding.buttonRegister.setOnClickListener {
+            val email = binding.editTextEmail.text.toString()
+            val phone = binding.editTextPhone.text.toString()
+            val password = binding.editTextPassword.text.toString()
+            
+            if (email.isNotEmpty() && phone.isNotEmpty() && password.isNotEmpty()) {
+                register(email, phone, password)
+            } else {
+                Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show()
             }
-        })
-
-        // Наблюдаем за ошибками
-        viewModel.errorMessage.observe(this, Observer { error ->
-            if (error != null) {
-                showError(error)
-            }
-        })
-
-        // Обработка нажатия по экрану для скрытия клавиатуры
-        val rootLayout: LinearLayout = findViewById(R.id.rootLayout)  // Корневой LinearLayout
-        rootLayout.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                // Закрыть клавиатуру при нажатии вне поля ввода
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(currentFocus?.windowToken, 0)
-            }
-            false
         }
+    }
 
-        // Валидация почты (только email)
-        editTextRegEmail.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val email = s.toString()
-                if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                    editTextRegEmail.error = "Введите правильный email"
+    private fun register(email: String, phone: String, password: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    ApiClient.authApi.register(RegisterRequest(email = email, phone = phone, password = password))
+                }
+                
+                if (response.isSuccessful) {
+                    response.body()?.let { registerResponse ->
+                        saveToken(registerResponse.token)
+                        withContext(Dispatchers.Main) {
+                            startMainActivity()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@RegisterActivity, "Ошибка регистрации", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@RegisterActivity, "Ошибка регистрации: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
-
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        // Валидация пароля (не менее одной цифры)
-        editTextRegPassword.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val password = s.toString()
-                if (password.length < 6 || !password.matches(".*\\d.*".toRegex())) {
-                    editTextRegPassword.error = "Пароль должен быть сложным (не менее 6 символов и содержать цифры)"
-                }
-            }
-
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        // Обработка кнопки регистрации
-        buttonRegister.setOnClickListener {
-            val email = editTextRegEmail.text.toString().trim()
-            val password = editTextRegPassword.text.toString().trim()
-            val confirmPassword = editTextConfirmPassword.text.toString().trim()
-
-            if (validateInput(email, password, confirmPassword)) {
-                registerUser(email, password)
-            }
         }
     }
 
-    private fun validateInput(
-        email: String,
-        password: String,
-        confirmPassword: String
-    ): Boolean {
-        return when {
-            email.isEmpty() -> {
-                showError("Введите email")
-                false
-            }
-            password.isEmpty() -> {
-                showError("Введите пароль")
-                false
-            }
-            password != confirmPassword -> {
-                showError("Пароли не совпадают")
-                false
-            }
-            else -> true
-        }
+    private fun saveToken(token: String) {
+        getSharedPreferences("auth", MODE_PRIVATE)
+            .edit()
+            .putString("token", token)
+            .apply()
     }
 
-    private fun registerUser(email: String, password: String) {
-        viewModel.register(email, password)
-    }
-
-    private fun showError(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    private fun startMainActivity() {
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        finish()
     }
 }

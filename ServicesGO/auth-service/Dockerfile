@@ -1,27 +1,26 @@
-# Используем официальный Go-образ как базовый
-FROM golang:1.21-alpine
-
-# Устанавливаем рабочую директорию
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
 
-# Устанавливаем необходимые пакеты для сборки
 RUN apk add --no-cache gcc musl-dev
 
-# Копируем go.mod и go.sum
 COPY go.mod go.sum ./
+RUN go mod download && go mod verify
 
-# Загружаем зависимости
-RUN go mod download && \
-    go mod verify
-
-# Копируем исходный код
 COPY . .
+RUN go build -o auth-service cmd/app/main.go
 
-# Собираем приложение
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+# --- 2) Runtime stage ---
+FROM alpine:latest
+WORKDIR /app
 
-# Открываем порт для сервера
+# Копируем бинарь и .env
+COPY --from=builder /app/auth-service .
+COPY .env ./
+
+# Копируем swagger-спецификации
+COPY internal/transport/rest/docs /app/docs
+
+# Открываем порт
 EXPOSE 8080
 
-# Команда для запуска приложения
-CMD ["./main"]
+ENTRYPOINT ["./auth-service"]

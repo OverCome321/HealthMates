@@ -1,0 +1,151 @@
+definitions:
+  rest.loginDTO:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  rest.registerDTO:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      phone:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  utils.APIError:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /auth/google:
+    get:
+      description: Перенаправление на Google для аутентификации
+      responses:
+        "302":
+          description: Found
+      summary: Начало OAuth Google
+      tags:
+      - auth
+  /auth/google/callback:
+    get:
+      description: Обрабатывает callback от Google и выдаёт JWT
+      parameters:
+      - description: Auth Code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: CSRF State
+        in: query
+        name: state
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Found
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.APIError'
+      summary: Callback OAuth Google
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет credentials и выдаёт access+refresh токены
+      parameters:
+      - description: Login Data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/rest.loginDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"access_token":"..."}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.APIError'
+      summary: Вход в систему
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: Принимает refresh-token из cookie и выдаёт новые токены
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"access_token":"..."}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.APIError'
+      summary: Обновление токена
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый аккаунт и возвращает access+refresh токены
+      parameters:
+      - description: Registration Data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/rest.registerDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: '{"access_token":"..."}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.APIError'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+swagger: "2.0"
